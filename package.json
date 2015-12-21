@@ -1,0 +1,23 @@
+{
+  "name": "openmrs-contrib-analyzecommits",
+  "version": "1.0.0",
+  "description": "Fetches and analyzes github commits to OpenMRS",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "OpenMRS",
+    "analyze",
+    "commits"
+  ],
+  "author": "djazayeri",
+  "license": "Do whatever you want",
+  "devDependencies": {
+    "elasticsearch": "^10.0.1",
+    "fast-csv": "^0.6.0",
+    "lodash": "^3.10.1",
+    "moment": "^2.10.6",
+    "prompt": "^0.2.14",
+    "request": "^2.67.0"
+  }
+}
