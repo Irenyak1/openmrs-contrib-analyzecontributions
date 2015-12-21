@@ -1,13 +1,13 @@
-Analyze Commits
-===============
+Analyze Contributions
+=====================
 
-Analyzes commits to the OpenMRS repositories, for use in an annual report
+Analyzes commits to the OpenMRS repositories, e.g for use in an annual report
 
 
 Requirements
 ======
 docker
-node.js
+nodejs
 npm
 
 
@@ -20,11 +20,12 @@ How To
     // OSX requires "-Des.network.bindHost=0.0.0.0" (not sure if other OSs do)
     docker run -d -p 9200:9200 -p 9300:9300 elasticsearch -Des.network.bindHost=0.0.0.0
 
-2. Download npm dependencies
+2. Download dependencies from npm
 
     npm install
 
-3. Fetch the data from github and load it into elasticsearch
+3. Fetch the data from github and load it into elasticsearch (use your GitHub username and password to
+avoid being rate-limited by the GitHub REST API)
 
     node fetch-from-github.js
 
