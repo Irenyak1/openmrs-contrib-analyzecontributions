@@ -52,3 +52,14 @@ node analyze-committers-for-year.js year [repo]
 ```
 node analyze-committers.js [repo]
 ```
+
+What Else?
+==========
+
+Kibana makes is trivial to do ad-hoc analysis on the commit data.
+
+```
+// this is the URL for me, on OSX. You may need a different one
+docker run -e ELASTICSEARCH_URL=http://192.168.99.100:9200 -p 5601:5601 -d kibana:4.2
+// in the UI you have to do Settings, then set index name to "commits" and click Create
+```
