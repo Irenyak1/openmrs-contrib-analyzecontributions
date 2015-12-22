@@ -5,7 +5,8 @@ var fs = require("fs");
 
 var IGNORE_COMMITTERS = ["openmrs-bot", "root@bamboo.pih-emr.org"];
 var CUTOFF_FOR_BIG_COMMITTER = 12;
-var RANGES = [1, 2, 5, 10, 20, 50, 100];
+//var RANGES = [1, 2, 5, 10, 20, 50, 100];
+var RANGES = [1, 5, 25, 125];
 var VERBOSE = true;
 
 var esClient = new elasticsearch.Client({

@@ -1,154 +1,169 @@
-/*
- * My apologies to anyone reading for the ugliness of this code. Really I should figure out how to
- * do various things inside promises, and use Q to combine promises from the different libraries.
- */
-
+var GitHubApi = require("github");
+var ES = require('elasticsearch');
+var Q = require("q");
 var _ = require('lodash');
 var moment = require('moment');
-var request = require('request');
-var elasticsearch = require('elasticsearch');
-var csv = require("fast-csv");
-var fs = require("fs");
 var prompt = require("prompt");
 
-var PAGE_SIZE = 100;
+var github = new GitHubApi({
+    version: "3.0.0",
+    protocol: "https"
+});
 
-var esClient = new elasticsearch.Client({
+var username;
+var password;
+
+var elasticsearch = new ES.Client({
     host: 'http://192.168.99.100:9200',
     log: 'info'
 });
 
-function fetchRepoByPage(repo, pageNum) {
-    console.log("Querying for page number " + pageNum + " from " + repo.repo);
-    var params = {
-        page: pageNum,
-        per_page: PAGE_SIZE
-    };
-    if (repo.since) {
-        params.since = repo.since.toISOString();
-    }
-    var queryString = "";
-    _.each(params, function (val, key) {
-        queryString += key + "=" + val + "&";
-    });
-    var url = "https://api.github.com/repos/openmrs/" + repo.repo + "/commits?" + queryString;
-    //console.log(url);
+function printError(err) {
+    console.log("Error! " + err);
+}
 
-    var auth = username ? {user: username, password: password} : null;
-    request({
-        url: url,
-        auth: auth,
-        headers: {
-            'User-Agent': 'request',
-            'Accept': 'application/vnd.github.v3+json'
-        }
-    }, function (error, response, body) {
-        if (error) {
-            console.log("!!! Error");
-            console.log(error);
-            process.exit(1);
-        }
-
-        var data = JSON.parse(body);
-
-        if (data.length) {
-            console.log("trace> " + data[0].commit.author.date);
-            console.log("trace> " + data[0].commit.message);
-        }
-
-        _.each(data, function (item) {
-            var toStore = {
-                repo: repo.repo,
-                sha: item.sha,
-                username: item.author ? item.author.login : item.commit.author.email,
-                date: item.commit.author.date,
-                year: moment(item.commit.author.date).year(),
-                message: item.commit.message
-            }
-            esClient.index({
-                index: 'commits',
-                type: repo.repo,
-                id: item.sha,
-                body: toStore
-            }, function (error, response) {
-                if (error) {
-                    console.log("!!! Error");
-                    console.log(error);
+function handleAllPages(thisPage, deferred, resolveWith, doForEachPage) {
+    doForEachPage(thisPage);
+    if (github.hasNextPage(thisPage)) {
+        //console.log("TRACE> fetching another page: " + github.hasNextPage(thisPage));
+        github.authenticate({
+            type: "basic",
+            username: username,
+            password: password
+        });
+        github.getNextPage(thisPage, function (err, nextPage) {
+            if (err) {
+                if (deferred) {
+                    deferred.reject(err);
                 }
-                //console.log(response);
+                else {
+                    printError(err);
+                }
+            }
+            handleAllPages(nextPage, deferred, resolveWith, doForEachPage);
+        });
+    }
+    else {
+        if (deferred) {
+            deferred.resolve(resolveWith);
+        }
+    }
+}
+
+function getAllRepos() {
+    var allRepos = [];
+    var deferred = Q.defer();
+
+    github.authenticate({
+        type: "basic",
+        username: username,
+        password: password
+    });
+    github.repos.getFromOrg({
+        org: "openmrs",
+        per_page: 100
+    }, function (err, firstPage) {
+        if (err) {
+            deferred.reject(err);
+        }
+        handleAllPages(firstPage, deferred, allRepos, function (page) {
+            _.each(page, function (repo) {
+                allRepos.push(repo);
+                elasticsearch.index({
+                    index: "repos",
+                    type: "repos",
+                    id: repo.id,
+                    body: repo
+                });
             });
         });
-
-        if (response.headers.link && response.headers.link.indexOf('rel="next"') > 0) {
-            fetchRepoByPage(repo, pageNum + 1);
-        }
-        else {
-            console.log("Fetched last page: " + pageNum);
-            fetchNextRepo();
-        }
     });
+    return deferred.promise;
 }
 
-function fetchNextRepo() {
-    console.log("fetchNextRepo()");
-    if (repos.length) {
-        var repo = repos.pop();
-        console.log("Handling " + repo.repo + " (" + repos.length + " left)");
-        fetchRepoByPage(repo, 1);
-    }
-}
-
-// first we set up our ElasticSearch mappings (so that sha, username, and repo are exact-value)
-function setupElasticSearchMappings(repos, callback) {
-    var body = {
-        mappings: {}
-    };
-    _.each(repos, function (repo) {
-        body.mappings[repo.repo] = {
-            properties: {
-                "sha": {
-                    "type": "string",
-                    "index": "not_analyzed"
-                },
-                "username": {
-                    "type": "string",
-                    "index": "not_analyzed"
-                },
-                "repo": {
-                    "type": "string",
-                    "index": "not_analyzed"
+function setupElasticSearchMappings() {
+    var deferred = Q.defer();
+    elasticsearch.indices.create({
+        index: "commits",
+        body: {
+            mappings: {
+                commits: {
+                    properties: {
+                        "sha": {
+                            "type": "string",
+                            "index": "not_analyzed"
+                        },
+                        "username": {
+                            "type": "string",
+                            "index": "not_analyzed"
+                        },
+                        "repo": {
+                            "type": "string",
+                            "index": "not_analyzed"
+                        }
+                    }
                 }
             }
-        };
+        }
+    }, function () {
+        deferred.resolve();
     });
-
-    esClient.indices.create({
-        index: "commits",
-        body: body
-    }, callback);
+    return deferred.promise;
 }
 
-var repos = []; // will be read from CSV
-
-function doWork() {
-    var reposCsv = fs.readFileSync("repos.csv", "utf8");
-    csv.fromString(reposCsv, {headers: true})
-        .on("data", function (data) {
-            if (data.since) {
-                data.since = moment(data.since);
-            }
-            if (data.until) {
-                data.until = moment(data.until);
-            }
-            repos.push(data);
-        })
-        .on("end", function () {
-            setupElasticSearchMappings(repos, fetchNextRepo);
-        });
+function getCommitsForRepo(repo) {
+    if (repo.name.indexOf("openmrs-") != 0) {
+        console.log("\n\n***************\nSkipping repo: " + repo.name + "\n***************");
+        return Q({skipped: repo.name});
+    }
+    console.log("\n\n***************\nGetting commits for " + repo.name + "\n***************");
+    var deferred = Q.defer();
+    github.repos.getCommits({
+        user: "openmrs",
+        repo: repo.name,
+        per_page: 100
+    }, function (err, response) {
+        if (err) {
+            printError(err);
+        } else {
+            handleAllPages(response, deferred, null, function (page) {
+                _.each(page, function (item) {
+                    var toStore = {
+                        repo: repo.name,
+                        sha: item.sha,
+                        username: item.author ? item.author.login : item.commit.author.email,
+                        date: item.commit.author.date,
+                        year: moment(item.commit.author.date).year(),
+                        message: item.commit.message,
+                        raw: item
+                    };
+                    elasticsearch.index({
+                        index: 'commits',
+                        type: 'commits',
+                        id: item.sha,
+                        body: toStore
+                    }, function (err, response) {
+                        if (err) {
+                            printError(err);
+                        }
+                    });
+                });
+                if (page.length) {
+                    console.log("trace> " + page[0].commit.author.date);
+                    console.log("trace> " + page[0].commit.message);
+                }
+            });
+        }
+    });
+    return deferred.promise;
 }
 
-var username;
-var password;
+function getCommitsForReposOneAtATime(allRepos) {
+    getCommitsForRepo(allRepos.pop()).then(function () {
+        getCommitsForReposOneAtATime(allRepos);
+    });
+}
+
 console.log("The github API rate-limits anonymous usage. Optionally enter your github username and password here");
 console.log("to avoid this.");
 prompt.start();
@@ -165,5 +180,8 @@ prompt.get({
 }, function (err, result) {
     username = result.username;
     password = result.password;
-    doWork();
+
+    setupElasticSearchMappings().
+    then(getAllRepos).
+    then(getCommitsForReposOneAtATime);
 });
