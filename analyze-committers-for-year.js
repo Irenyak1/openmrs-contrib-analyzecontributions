@@ -6,6 +6,7 @@ var fs = require("fs");
 var IGNORE_COMMITTERS = ["openmrs-bot", "root@bamboo.pih-emr.org"];
 var CUTOFF_FOR_BIG_COMMITTER = 12;
 var RANGES = [1, 2, 5, 10, 20, 50, 100];
+var CUTOFF_FOR_SIGNIFICANT_CONTRIBUTION = 24;
 
 var year = process.argv[2];
 
@@ -25,6 +26,12 @@ var esClient = new elasticsearch.Client({
     host: 'http://192.168.99.100:9200',
     log: 'info'
 });
+
+function prettyName(repoName) {
+    repoName = repoName.replace("openmrs-", "");
+    repoName = repoName.replace("module-", "");
+    return repoName;
+}
 
 function level(numCommits) {
     for (var i = RANGES.length - 1; i >= 0; --i) {
@@ -46,6 +53,7 @@ if (repo) {
     query = {
         and: [
             {not: {terms: {username: IGNORE_COMMITTERS}}},
+            {not: {prefix: {username: 'bamboo'}}},
             {term: {year: year}},
             {term: {repo: repo}}
         ]
@@ -54,6 +62,7 @@ if (repo) {
     query = {
         and: [
             {not: {terms: {username: IGNORE_COMMITTERS}}},
+            {not: {prefix: {username: 'bamboo'}}},
             {term: {year: year}}
         ]
     };
@@ -101,4 +110,60 @@ esClient.search({
         headers: true
     }).pipe(ws);
     console.log("Wrote: " + filename);
+});
+
+
+esClient.search({
+    index: "commits",
+    search_type: "count",
+    body: {
+        query: query,
+        aggs: {
+            "group_by_committer": {
+                "terms": {
+                    "field": "username",
+                    size: 0
+                },
+                aggs: {
+                    group_by_repo: {
+                        terms: {
+                            field: "repo",
+                            size: 0
+                        }
+                    }
+                }
+            }
+        }
+    }
+}, function (error, response) {
+    var significant = [];
+    _.each(response.aggregations.group_by_committer.buckets, function (item) {
+        var totalCommits = item.doc_count;
+        if (totalCommits < CUTOFF_FOR_BIG_COMMITTER) {
+            return;
+        }
+        var username = item.key;
+        var forUser = {};
+        _.each(_.filter(item.group_by_repo.buckets, function (repoBucket) {
+            return repoBucket.doc_count >= CUTOFF_FOR_SIGNIFICANT_CONTRIBUTION;
+        }), function (repoBucket) {
+            var repo = repoBucket.key;
+            var repoCommits = repoBucket.doc_count;
+            forUser[repo] = repoCommits;
+            //console.log(username + "\t" + repo + "\t" + repoCommits);
+        });
+        significant.push({
+            username: username,
+            totalCommits: totalCommits,
+            significantRepos: forUser
+        });
+    });
+    console.log("\nSignificant contributions (>= " + CUTOFF_FOR_SIGNIFICANT_CONTRIBUTION + " by big committers\n");
+    _.each(significant, function (item) {
+        var str = item.totalCommits + "\t" + item.username + "\t\t";
+        str += _.map(item.significantRepos, function (repoCommits, repo) {
+            return prettyName(repo) + "(" + repoCommits + ")";
+        }).join(", ");
+        console.log(str);
+    })
 });

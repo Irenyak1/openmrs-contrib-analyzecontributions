@@ -25,9 +25,10 @@ var dataByYear = {};
 
 var body = {
     query: {
-        not: {
-            terms: {username: IGNORE_COMMITTERS}
-        }
+        and: [
+            {not: {terms: {username: IGNORE_COMMITTERS}}},
+            {not: {prefix: {username: 'bamboo'}}}
+        ]
     },
     aggs: {
         "by_year": {

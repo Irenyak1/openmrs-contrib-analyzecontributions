@@ -61,6 +61,7 @@ function getAllRepos() {
     });
     github.repos.getFromOrg({
         org: "openmrs",
+        type: "public",
         per_page: 100
     }, function (err, firstPage) {
         if (err) {
