@@ -53,13 +53,30 @@ node analyze-committers-for-year.js year [repo]
 node analyze-committers.js [repo]
 ```
 
-What Else?
-==========
+Analytics with Kibana
+=====================
 
 Kibana makes is trivial to do ad-hoc analysis on the commit data.
 
 ```
 // this is the URL for me, on OSX. You may need a different one
 docker run -e ELASTICSEARCH_URL=http://192.168.99.100:9200 -p 5601:5601 -d kibana:4.2
-// in the UI you have to do Settings, then set index name to "commits" and click Create
+// in the UI you have to do Settings, then set index name to "commits", choose the "date" field, and click Create
+```
+
+Dashboard webapp
+================
+
+There's a toy webapp for viewing this data as a dashboard. (I wanted to see what writing a node.js webapp
+using Express was like.)
+
+```
+cd webapp
+// only need to do this once
+npm install
+// if elasticsearch is running on http://192.168.99.100:9200 for you like it is for me:
+npm start
+// otherwise specify the elasticsearch host, like
+npm start http://localhost:9200 
+// the webapp will start on http://localhost:3000/
 ```

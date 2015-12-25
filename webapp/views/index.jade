@@ -1,0 +1,20 @@
+extends layout
+
+block content
+    div(ng-app="openmrs-community", ng-controller="DashboardController")
+        h1= title
+        div(class="col-xs-4")
+            h3 Top Committers This Month
+            table(class="table")
+                tbody
+                    tr(ng-repeat="c in topCommitters")
+                        td {{c.username}}
+                        td {{c.numCommits}}
+        div(class="col-xs-4")
+            h3 Active Repos This Week
+            table(class="table")
+                tbody
+                    tr(ng-repeat="r in topRepos")
+                        td {{r.repo}}
+                        td {{r.numCommits}}
+    script(src="/javascripts/index.js")
