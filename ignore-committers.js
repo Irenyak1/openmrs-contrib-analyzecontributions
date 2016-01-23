@@ -1,0 +1,1 @@
+module.exports = ["openmrs-bot", "root@bamboo.pih-emr.org"];
