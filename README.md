@@ -35,6 +35,13 @@ avoid being rate-limited by the GitHub REST API)
 node fetch-from-github.js
 ```
 
+If you want more details about committers
+
+```
+node fetch-committers-from-github.js
+node search-committers.js bahmni    // full-text search for "bahmni" on anyone who committed to OpenMRS
+```
+
 4. To see one committer's work over time
 
 ```
