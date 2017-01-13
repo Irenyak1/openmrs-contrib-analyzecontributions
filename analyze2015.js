@@ -68,7 +68,28 @@ esClient.search({
     console.log("Top 10 Repos");
     _.each(_.take(response.aggregations.group_by_repo.buckets, 10), function (it) {
         console.log(it.key + "\t" + it.doc_count);
-    })
+    });
+    var byType = _.groupBy(response.aggregations.group_by_repo.buckets, function (it) {
+        if (it.key.startsWith("openmrs-module-")) {
+            return "module";
+        }
+        else if (it.key.startsWith("openmrs-core")) {
+            return "core";
+        }
+        else if (it.key.startsWith("openmrs-contrib-")) {
+            return "contrib";
+        }
+        else if (it.key.startsWith("openmrs-test-")) {
+            return "test";
+        }
+        else {
+            return it.key;
+        }
+    });
+    console.log("Repos broken down by type:");
+    console.log(_.map(byType, function (val, key) {
+        return key + ": " + val.length
+    }).join("\n"));
 });
 
 // commits and committers to highlighted repos

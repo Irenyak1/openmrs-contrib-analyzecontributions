@@ -6,9 +6,10 @@ Analyzes commits to the OpenMRS repositories, e.g for use in an annual report
 
 Requirements
 ======
-docker
-nodejs
-npm
+
+* docker
+* nodejs
+* npm
 
 
 How To
@@ -17,9 +18,18 @@ How To
 1. Run the elasticsearch docker container:
 
 ```
+// maybe you've done this before...
+docker start es-ac
+
+// make sure you have the latest
+docker pull elasticsearch:latest
+
 // this container will not persist data across restarts; see the docs on dockerhub if you want this
-// OSX requires "-Des.network.bindHost=0.0.0.0" (not sure if other OSs do)
-docker run -d -p 9200:9200 -p 9300:9300 elasticsearch -Des.network.bindHost=0.0.0.0
+// (this doesn't work against newer versions of elasticsearch; I haven't looked into why) 
+docker run -d --name es-ac -p 9200:9200 -p 9300:9300 elasticsearch:1
+ 
+mkdir esdata
+docker run --name es-ac -v "$PWD/esdata":/usr/share/elasticsearch/data -d -p 9200:9200 -p 9300:9300 -e ES_JAVA_OPTS="-Xms1g -Xmx1g" elasticsearch:latest
 ```
 
 2. Download dependencies from npm
@@ -66,9 +76,10 @@ Analytics with Kibana
 Kibana makes is trivial to do ad-hoc analysis on the commit data.
 
 ```
-// this is the URL for me, on OSX. You may need a different one
-docker run -e ELASTICSEARCH_URL=http://192.168.99.100:9200 -p 5601:5601 -d kibana:4.2
+docker run --name k-ac --link es-ac:es-ac -e ELASTICSEARCH_URL=http://es-ac:9200 -p 5601:5601 -d kibana:latest
+// it should be running on http://localhost:5601
 // in the UI you have to do Settings, then set index name to "commits", choose the "date" field, and click Create
+// then click Discover and change the time frame from the top right
 ```
 
 Dashboard webapp

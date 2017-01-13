@@ -1,1 +1,1 @@
-module.exports = ["openmrs-bot", "root@bamboo.pih-emr.org"];
+module.exports = ["openmrs-bot", "root@bamboo.pih-emr.org", "pihinformatics", "travis@localhost"];

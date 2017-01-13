@@ -5,6 +5,8 @@ var _ = require('lodash');
 var moment = require('moment');
 var prompt = require("prompt");
 
+var SKIP_REPOS = ['openmrs-module-radiology-legacyui'];
+
 var github = new GitHubApi({
     version: "3.0.0",
     protocol: "https"
@@ -14,13 +16,28 @@ var username;
 var password;
 
 var elasticsearch = new ES.Client({
-    host: 'http://192.168.99.100:9200',
+    // host: 'http://192.168.99.100:9200',
+    host: 'http://localhost:9200',
     log: 'info'
 });
 
-function printError(err) {
-    console.log("Error! " + err);
+function testElasticSearchConnection(client) {
+    console.log("Checking ElasticSearch connection...");
+    var deferred = Q.defer();
+    client.ping({}, function (error) {
+        if (error) {
+            console.log("Error connecting to ElasticSearch.");
+            console.log(error);
+            deferred.reject(error);
+        } else {
+            console.log("Connected to ElasticSearch.");
+            deferred.resolve();
+        }
+    });
+    return deferred.promise;
 }
+
+var esPromise = testElasticSearchConnection(elasticsearch);
 
 function handleAllPages(thisPage, deferred, resolveWith, doForEachPage) {
     doForEachPage(thisPage);
@@ -37,7 +54,8 @@ function handleAllPages(thisPage, deferred, resolveWith, doForEachPage) {
                     deferred.reject(err);
                 }
                 else {
-                    printError(err);
+                    console.log("Github Error getting next page!");
+                    console.log(err);
                 }
             }
             handleAllPages(nextPage, deferred, resolveWith, doForEachPage);
@@ -91,16 +109,14 @@ function setupElasticSearchMappings() {
                 commits: {
                     properties: {
                         "sha": {
-                            "type": "string",
-                            "index": "not_analyzed"
+                            "type": "keyword",
+                            "index": false
                         },
                         "username": {
-                            "type": "string",
-                            "index": "not_analyzed"
+                            "type": "keyword"
                         },
                         "repo": {
-                            "type": "string",
-                            "index": "not_analyzed"
+                            "type": "keyword"
                         }
                     }
                 }
@@ -113,7 +129,7 @@ function setupElasticSearchMappings() {
 }
 
 function getCommitsForRepo(repo) {
-    if (repo.name.indexOf("openmrs-") != 0) {
+    if ((repo.name.indexOf("openmrs-") != 0) || (SKIP_REPOS.indexOf(repo.name) >= 0)) {
         console.log("\n\n***************\nSkipping repo: " + repo.name + "\n***************");
         return Q({skipped: repo.name});
     }
@@ -125,7 +141,8 @@ function getCommitsForRepo(repo) {
         per_page: 100
     }, function (err, response) {
         if (err) {
-            printError(err);
+            console.log("Github error!");
+            console.log(err);
         } else {
             handleAllPages(response, deferred, null, function (page) {
                 _.each(page, function (item) {
@@ -145,11 +162,12 @@ function getCommitsForRepo(repo) {
                         body: toStore
                     }, function (err, response) {
                         if (err) {
-                            printError(err);
+                            console.log("ElasticSearch error!");
+                            console.log(err);
                         }
                     });
                 });
-                if (page.length) {
+                if (page && page.length) {
                     console.log("trace> " + page[0].commit.author.date);
                     console.log("trace> " + page[0].commit.message);
                 }
@@ -165,24 +183,33 @@ function getCommitsForReposOneAtATime(allRepos) {
     });
 }
 
-console.log("The github API rate-limits anonymous usage. Optionally enter your github username and password here");
-console.log("to avoid this.");
-prompt.start();
-prompt.get({
-    properties: {
-        username: {
-            description: "GitHub username"
-        },
-        password: {
-            description: "GitHub password",
-            hidden: true
-        }
-    }
-}, function (err, result) {
-    username = result.username;
-    password = result.password;
+esPromise.then(function () {
+    setupElasticSearchMappings();
 
-    setupElasticSearchMappings().
-    then(getAllRepos).
-    then(getCommitsForReposOneAtATime);
+    console.log("The github API rate-limits anonymous usage. Optionally enter your github username and password here");
+    console.log("to avoid this.");
+    prompt.start();
+    prompt.get({
+                   properties: {
+                       username: {
+                           description: "GitHub username"
+                       },
+                       password: {
+                           description: "GitHub password",
+                           hidden: true
+                       }
+                   }
+               }, function (err, result) {
+        username = result.username;
+        password = result.password;
+
+
+        getAllRepos().then(function (allRepos) {
+            console.log("There are " + allRepos.length + " repos...");
+            return allRepos;
+        }, function (err) {
+            console.log("Failed to get all repos");
+            console.log(err);
+        }).then(getCommitsForReposOneAtATime);
+    });
 });
