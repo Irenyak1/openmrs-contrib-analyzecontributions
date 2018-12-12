@@ -1,5 +1,6 @@
 var _ = require('lodash');
 var elasticsearch = require('elasticsearch');
+var HUGE_SIZE = 999999;
 var csv = require("fast-csv");
 var fs = require("fs");
 var IGNORE_COMMITTERS = require("./ignore-committers");
@@ -23,7 +24,7 @@ if (repo) {
 }
 
 var esClient = new elasticsearch.Client({
-    host: 'http://192.168.99.100:9200',
+    host: 'http://localhost:9200',
     log: 'info'
 });
 
@@ -51,40 +52,46 @@ function level(numCommits) {
 var query;
 if (repo) {
     query = {
-        and: [
-            {not: {terms: {username: IGNORE_COMMITTERS}}},
-            {not: {prefix: {username: 'bamboo'}}},
-            {term: {year: year}},
-            {term: {repo: repo}}
-        ]
+        bool: {
+            filter: [
+                {term: {year: year}},
+                {term: {repo: repo}}
+            ],
+            must_not: [
+                {terms: {username: IGNORE_COMMITTERS}},
+                {prefix: {username: 'bamboo'}}
+            ]
+        }
     }
 } else {
     query = {
-        and: [
-            {not: {terms: {username: IGNORE_COMMITTERS}}},
-            {not: {prefix: {username: 'bamboo'}}},
-            {term: {year: year}}
-        ]
+        bool: {
+            filter: {term: {year: year}},
+            must_not: [
+                {terms: {username: IGNORE_COMMITTERS}},
+                {prefix: {username: 'bamboo'}}
+            ]
+        }
     };
 }
 ;
 
 esClient.search({
     index: "commits",
-    search_type: "count",
     body: {
         query: query,
         aggs: {
             "group_by_committer": {
                 "terms": {
                     "field": "username",
-                    size: 0
+                    size: HUGE_SIZE
                 }
             }
         }
     }
 }, function (error, response) {
     var data = _.map(response.aggregations.group_by_committer.buckets, function (item) {
+        console.log(item);
         return {
             username: item.key,
             commits: item.doc_count,
@@ -115,20 +122,19 @@ esClient.search({
 
 esClient.search({
     index: "commits",
-    search_type: "count",
     body: {
         query: query,
         aggs: {
             "group_by_committer": {
                 "terms": {
                     "field": "username",
-                    size: 0
+                    size: HUGE_SIZE
                 },
                 aggs: {
                     group_by_repo: {
                         terms: {
                             field: "repo",
-                            size: 0
+                            size: HUGE_SIZE
                         }
                     }
                 }

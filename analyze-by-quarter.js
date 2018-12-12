@@ -10,7 +10,7 @@ var esClient = new elasticsearch.Client({
     log: 'info'
 });
 
-var YEAR = 2016;
+var YEAR = 2018;
 
 var quarters = [];
 quarters.push(YEAR + "-01-01");

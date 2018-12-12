@@ -1,16 +1,17 @@
 var _ = require('lodash');
 var moment = require('moment');
 var elasticsearch = require('elasticsearch');
-
+var HUGE_SIZE = 999999;
 var username = process.argv[2];
+var year = process.argv[3];
 
 if (!username) {
-    console.log("Usage: analyze-user.js <username>");
+    console.log("Usage: analyze-user.js <username> [<year>]");
     process.exit(1);
 }
 
 var esClient = new elasticsearch.Client({
-    host: 'http://192.168.99.100:9200',
+    host: 'http://localhost:9200',
     log: 'info'
 });
 
@@ -41,7 +42,6 @@ function level(numCommits) {
 
 esClient.search({
     index: "commits",
-    search_type: "count",
     body: {
         query: {
             term: {username: username}
@@ -51,7 +51,7 @@ esClient.search({
                 "terms": {
                     "field": "year",
                     "order": {"_term": "desc"},
-                    "size": 0
+                    "size": HUGE_SIZE
                 }
             }
         }
@@ -66,7 +66,6 @@ esClient.search({
 
 esClient.search({
     index: "commits",
-    search_type: "count",
     body: {
         query: {
             term: {username: username}
@@ -75,7 +74,7 @@ esClient.search({
             "group_by_repo": {
                 "terms": {
                     "field": "repo",
-                    "size": 0
+                    "size": HUGE_SIZE
                 }
             }
         }
@@ -88,28 +87,29 @@ esClient.search({
     });
 });
 
-var thisYear = moment().year();
+var checkYear = year ? year : moment().year();
 esClient.search({
     index: "commits",
-    search_type: "count",
     body: {
         query: {
-            and: [
-                {term: {username: username}},
-                {term: {year: thisYear}}
-            ]
+            bool: {
+                filter: [
+                    {term: {username: username}},
+                    {term: {year: checkYear }}
+                ]
+            }
         },
         aggs: {
             "group_by_repo": {
                 "terms": {
                     "field": "repo",
-                    "size": 0
+                    "size": HUGE_SIZE
                 }
             }
         }
     }
 }, function (error, response) {
-    console.log("\nCommits By Repo (this year)");
+    console.log("\nCommits By Repo (" + checkYear + ")");
     console.log("===========================");
     var data = _.map(response.aggregations.group_by_repo.buckets, function (item) {
         console.log(item.key + ", " + item.doc_count);
