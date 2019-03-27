@@ -38,7 +38,6 @@ npm install
 avoid being rate-limited by the GitHub REST API)
 
 ```
-node setup-elasticsearch.js    // one time only
 node fetch-from-github.js
 ```
 
@@ -72,6 +71,7 @@ Analytics with Kibana
 
 Kibana makes is trivial to do ad-hoc analysis on the commit data.
 
+TODO change this to use an image from the docker.elastic.co registry
 ```
 docker run --name k-ac --link es-ac:es-ac -e ELASTICSEARCH_URL=http://es-ac:9200 -p 5601:5601 -d kibana:latest
 // it should be running on http://localhost:5601
