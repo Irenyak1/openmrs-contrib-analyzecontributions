@@ -19,13 +19,13 @@ How To
 
 ```
 // maybe you've done this before...
-docker start es-ac
+sudo docker start es-ac
 
 // make sure you have the latest
-docker pull elasticsearch:latest
- 
-mkdir esdata
-docker run --name es-ac -v "$PWD/esdata":/usr/share/elasticsearch/data -d -p 9200:9200 -p 9300:9300 -e ES_JAVA_OPTS="-Xms1g -Xmx1g" elasticsearch:latest
+sudo docker pull docker.elastic.co/elasticsearch/elasticsearch:6.7.0
+
+// this will not preserve data across restarts
+sudo docker run --name es-ac -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" docker.elastic.co/elasticsearch/elasticsearch:6.7.0
 ```
 
 2. Download dependencies from npm
@@ -38,6 +38,7 @@ npm install
 avoid being rate-limited by the GitHub REST API)
 
 ```
+node setup-elasticsearch.js    // one time only
 node fetch-from-github.js
 ```
 
