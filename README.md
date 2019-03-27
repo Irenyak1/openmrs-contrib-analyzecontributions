@@ -23,10 +23,6 @@ docker start es-ac
 
 // make sure you have the latest
 docker pull elasticsearch:latest
-
-// this container will not persist data across restarts; see the docs on dockerhub if you want this
-// (this doesn't work against newer versions of elasticsearch; I haven't looked into why) 
-docker run -d --name es-ac -p 9200:9200 -p 9300:9300 elasticsearch:1
  
 mkdir esdata
 docker run --name es-ac -v "$PWD/esdata":/usr/share/elasticsearch/data -d -p 9200:9200 -p 9300:9300 -e ES_JAVA_OPTS="-Xms1g -Xmx1g" elasticsearch:latest
@@ -64,10 +60,10 @@ node analyze-user.js username
 node analyze-committers-for-year.js year [repo]
 ```
 
-6. The real analysis we want
+6. The real analysis we want (you may need to edit this file to set the correct YEAR constant)
 
 ```
-node analyze-committers.js [repo]
+node analyze-by-quarter.js
 ```
 
 Analytics with Kibana
