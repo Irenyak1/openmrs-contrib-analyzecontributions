@@ -10,7 +10,7 @@ var esClient = new elasticsearch.Client({
     log: 'info'
 });
 
-var YEAR = 2018;
+var YEAR = 2019;
 
 var quarters = [];
 quarters.push(YEAR + "-01-01");
@@ -23,13 +23,13 @@ var data = {};
 
 for (let i = 0; i < 4; ++i) {
     esClient.search({
-                        index: "commits",
-                        body: {
-                            "query": {
-                                "range": {"date": {"gte": quarters[i], "lt": quarters[i + 1]}}
-                            }
-                        }
-                    }).then(function (response) {
+        index: "commits",
+        body: {
+            "query": {
+                "range": { "date": { "gte": quarters[i], "lt": quarters[i + 1] } }
+            }
+        }
+    }).then(function (response) {
         console.log("\n" + YEAR + " Q" + (i + 1) + " commits\t" + response.hits.total);
     }, function (err) {
         console.log(err);
@@ -38,24 +38,24 @@ for (let i = 0; i < 4; ++i) {
 
 for (let i = 0; i < 4; ++i) {
     esClient.search({
-                        index: "commits",
-                        body: {
-                            "query": {
-                                "bool": {
-                                    "must_not": {"terms": {"username": IGNORE_COMMITTERS}},
-                                    "filter": {"range": {"date": {"gte": quarters[i], "lt": quarters[i + 1]}}}
-                                }
-                            },
-                            "aggs": {
-                                "by_committer": {
-                                    "terms": {
-                                        "field": "username",
-                                        "size": 999999
-                                    }
-                                }
-                            }
-                        }
-                    }).then(function (response) {
+        index: "commits",
+        body: {
+            "query": {
+                "bool": {
+                    "must_not": { "terms": { "username": IGNORE_COMMITTERS } },
+                    "filter": { "range": { "date": { "gte": quarters[i], "lt": quarters[i + 1] } } }
+                }
+            },
+            "aggs": {
+                "by_committer": {
+                    "terms": {
+                        "field": "username",
+                        "size": 999999
+                    }
+                }
+            }
+        }
+    }).then(function (response) {
         console.log("\n" + YEAR + " Q" + (i + 1) + " human commits\t" + response.hits.total);
         console.log("Human committers in " + YEAR + " Q" + (i + 1) + "\t" + response.aggregations.by_committer.buckets.length);
 
